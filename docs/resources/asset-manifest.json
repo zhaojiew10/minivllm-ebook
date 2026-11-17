@@ -1,0 +1,416 @@
+{
+  "version": 1,
+  "asset_count": 26,
+  "assets": [
+    {
+      "chapter": "ch03",
+      "path": "../resources/slides/v001/slide-001.png",
+      "alt": "三组门控 MLP 结构图：左侧输入分别经过 Gate 与 Up 线性层，Gate 经 SiLU 后与 Up 相乘，再经 Down 投影；中间把 Gate 和 Up 合并后交给 SiluAndMul；右侧放大显示 x、y 的分块与逐元素乘法。",
+      "caption": "从独立的 Gate、Up、Down 分支，到合并 Gate Up 权重，再到 SiluAndMul 的门控计算，这张图串起了 activation.py 的核心路径；同时标出了 1024 与 3072 之间的维度变化。",
+      "source_type": "pdf",
+      "source_file": "1. minivllm安装&activation.py实现【从0手撸vllm】.pdf",
+      "page": 1,
+      "clip_pt": [
+        420,
+        1200,
+        1100,
+        1585
+      ],
+      "width": 2040,
+      "height": 1155
+    },
+    {
+      "chapter": "ch03",
+      "path": "../resources/slides/v002/slide-001.png",
+      "alt": "不带残差与带残差的 RMSNorm 对照图。两侧是 Decoder Layer 中 Attention、MLP 和 RMSNorm 的连接差异，中间代码显示先执行 x 加 residual，再同时返回归一化结果与更新后的残差。",
+      "caption": "第一个 Decoder 与后续 Decoder 的输入约定不同：后续层需要把残差相加后再做 RMSNorm，并保留新的残差。中间两段代码可用来对照 residual_rms_forward 与 rms_forward 的职责边界。",
+      "source_type": "pdf",
+      "source_file": "2. layernorm.py中的RMSNorm实现【从0手撸vllm】.pdf",
+      "page": 1,
+      "clip_pt": [
+        90,
+        1275,
+        1110,
+        1610
+      ],
+      "width": 3060,
+      "height": 1005
+    },
+    {
+      "chapter": "ch04",
+      "path": "../resources/slides/v003/slide-001.png",
+      "alt": "ColumnParallelLinear 列并行示意图。tp_dim 为 0、全局 GPU 数为 2，完整权重按输出维拆给 rank0 和 rank1，两个 rank 的局部输出经 all_gather 拼成完整结果。",
+      "caption": "列并行切的是输出特征：每个 rank 只保存一部分权重行并计算局部输出，再用 all_gather 恢复完整输出维。图中 Linear(4,12) 与 weight(12,4) 的方向也可用来核对 PyTorch 线性层权重形状。",
+      "source_type": "pdf",
+      "source_file": "3. linear.py&列并行.pdf",
+      "page": 1,
+      "clip_pt": [
+        590,
+        1170,
+        1110,
+        1640
+      ],
+      "width": 1560,
+      "height": 1410
+    },
+    {
+      "chapter": "ch04",
+      "path": "../resources/slides/v004/slide-001.png",
+      "alt": "MergedColumnParallelLinear 的合并权重分片图。loaded_weight_id 0 和 1 对应两组原始权重，rank0、rank1 分别取本地片段；右侧展示四个 rank 的本地权重以及 all_gather 后的完整输出。",
+      "caption": "合并线性层不是把不同权重简单混成一片，而是先按 loaded_weight_id 计算逻辑偏移，再按 rank 取每段权重的本地切片。读图时可沿左侧两次加载追踪到中间的本地参数，再观察右侧的输出汇聚。",
+      "source_type": "pdf",
+      "source_file": "4. linear.py&MergedColumnParallelLinear.drawio.pdf",
+      "page": 1,
+      "clip_pt": [
+        50,
+        865,
+        1100,
+        1210
+      ],
+      "width": 3150,
+      "height": 1035
+    },
+    {
+      "chapter": "ch04",
+      "path": "../resources/slides/v005/slide-001.png",
+      "alt": "QKV 合并线性层的按头分片图。示例中 q 的形状为 12×24，k 和 v 各为 12×12，head_size 为 6、Query 头数为 4、KV 头数为 2；rank0 与 rank1 各取对应头片段，最后经 all_gather 合并。",
+      "caption": "QKVColumnParallelLinear 需要分别维护 Q、K、V 的偏移和分片大小，尤其适合观察 GQA 中 Q 头数与 KV 头数不相等时的切分方式。每种颜色对应一类投影及其头片段。",
+      "source_type": "pdf",
+      "source_file": "5. linear.py&QKV张量并行.pdf",
+      "page": 1,
+      "clip_pt": [
+        45,
+        815,
+        1100,
+        1345
+      ],
+      "width": 3165,
+      "height": 1590
+    },
+    {
+      "chapter": "ch04",
+      "path": "../resources/slides/v006/slide-001.png",
+      "alt": "RowParallelLinear 行并行示意图。rank0 与 rank1 各接收输入的一部分并配合对应的本地权重块，产生两个部分结果，随后通过 all_reduce 求和。",
+      "caption": "行并行沿输入维切分，因此单个 rank 的结果只是部分和，不能直接当作最终输出；all_reduce 的求和才把各分片贡献合并起来。它与列并行后的 all_gather 形成鲜明对照。",
+      "source_type": "pdf",
+      "source_file": "6. linear.py&行并行.pdf",
+      "page": 1,
+      "clip_pt": [
+        250,
+        670,
+        610,
+        1130
+      ],
+      "width": 1080,
+      "height": 1380
+    },
+    {
+      "chapter": "ch05",
+      "path": "../resources/slides/v007/slide-001.png",
+      "alt": "VocabParallelEmbedding 的双 rank 查表示例。每个 rank 先用布尔 mask 判断 token 是否属于本地词表，再把原始索引换算为相对索引，非本地位置置零，最后通过 all_reduce 合成完整嵌入张量。",
+      "caption": "词表并行嵌入的关键不是简单查表，而是“归属判断—本地索引—掩码置零—跨 rank 求和”这一串操作。图中 rank0 与 rank1 的 mask 互补，便于逐 token 验证计算过程。",
+      "source_type": "pdf",
+      "source_file": "7. embedding_head.py&嵌入层并行&VocabParallelEmbedding.pdf",
+      "page": 1,
+      "clip_pt": [
+        35,
+        1020,
+        1120,
+        1710
+      ],
+      "width": 3255,
+      "height": 2070
+    },
+    {
+      "chapter": "ch05",
+      "path": "../resources/slides/v008/slide-001.png",
+      "alt": "ParallelLMHead 的词表并行计算图。rank0 和 rank1 各持有 6×4 权重，对相同的 3×4 隐藏状态计算 3×6 局部 logits；右侧把两份局部 logits gather 为 3×12，裁掉补齐位置后做 Softmax。",
+      "caption": "LM Head 复用词表分片，但输出的是 logits 而不是嵌入。每个 rank 先计算本地词表的 logits，再在 rank0 汇聚、拼接并去除词表补齐产生的冗余列，最后才能得到完整词表上的概率。",
+      "source_type": "pdf",
+      "source_file": "8. embedding_head.py&lm_head&词表并行.pdf",
+      "page": 1,
+      "clip_pt": [
+        80,
+        2420,
+        1130,
+        3100
+      ],
+      "width": 3150,
+      "height": 2040
+    },
+    {
+      "chapter": "ch13",
+      "path": "../resources/slides/v009/slide-001.png",
+      "alt": "课件中的 KV Cache 显存分配示例。8 GB HBM 中 Qwen3-0.6B 模型占 2.23 GB，示例为 KV Cache 分配 4 GB；按 all_kv_cache 形状 2×28×73×256×8×128 计算得到 73 个块，并展开说明每层、每块和每头的布局。",
+      "caption": "这组课件示例把显存估算与张量布局连在一起：先确定可用于 KV Cache 的空间，再除以单个块的字节数得到块数。右侧逐级展开 K、V、28 层、256 个槽位、8 个头和头维 128，适合配合 ModelRunner 的分配代码阅读。",
+      "source_type": "pdf",
+      "source_file": "9. Prefill&FlashAttention&Online Softmax.pdf",
+      "page": 1,
+      "clip_pt": [
+        70,
+        890,
+        1080,
+        1490
+      ],
+      "width": 3030,
+      "height": 1800
+    },
+    {
+      "chapter": "ch08",
+      "path": "../resources/slides/v009/slide-002.png",
+      "alt": "FlashAttention 第一个 Q_BLOCK 的计算图。读取 Q 的 Block_0，遍历 K 的 Block_0，得到 16×16 的 qk，再依次施加因果 mask 和有效长度 mask，最后与 V 的 Block_0 计算输出。",
+      "caption": "第一个 Q 块展示了分块注意力的完整数据流：QK 矩阵不必扩展到完整序列，而是在当前块内计算并施加 mask。下三角因果区域与尾部的 mask_n 共同决定哪些得分可以保留。",
+      "source_type": "pdf",
+      "source_file": "9. Prefill&FlashAttention&Online Softmax.pdf",
+      "page": 2,
+      "clip_pt": [
+        90,
+        1490,
+        1050,
+        1800
+      ],
+      "width": 2880,
+      "height": 930
+    },
+    {
+      "chapter": "ch08",
+      "path": "../resources/slides/v009/slide-003.png",
+      "alt": "FlashAttention 第二个 Q_BLOCK 与第二个 KV_BLOCK 的计算图。Q 取 Block_1，K、V 也推进到 Block_1；qk 经因果 mask、mask_n 等逐步筛选后，只剩当前块允许访问的局部区域。",
+      "caption": "与第一个 Q 块对照，可以看到块索引推进后因果有效区如何变化。该图适合用来核对 offs_m、offs_n、mask_causal 与 mask_n 的组合，而不是只背一个下三角掩码公式。",
+      "source_type": "pdf",
+      "source_file": "9. Prefill&FlashAttention&Online Softmax.pdf",
+      "page": 2,
+      "clip_pt": [
+        90,
+        2770,
+        1060,
+        3090
+      ],
+      "width": 2910,
+      "height": 960
+    },
+    {
+      "chapter": "ch08",
+      "path": "../resources/slides/v009/slide-004.png",
+      "alt": "传统 Softmax、数值稳定 Softmax 与 Online Softmax 的公式对照。下方把输入分成 s1、s2、s3 三段并逐段重缩放，右侧 Triton 代码对应更新最大值、累加器、归一化因子和 V 加权和。",
+      "caption": "Online Softmax 的核心是用新的历史最大值重缩放旧累加结果，再把当前块纳入，因此无需一次性保存全部注意力分数。左侧公式与右侧 m_i、alpha、acc、l_i 的更新可逐行对应。",
+      "source_type": "pdf",
+      "source_file": "9. Prefill&FlashAttention&Online Softmax.pdf",
+      "page": 2,
+      "clip_pt": [
+        90,
+        1780,
+        1040,
+        2280
+      ],
+      "width": 2850,
+      "height": 1500
+    },
+    {
+      "chapter": "ch09",
+      "path": "../resources/slides/v010/slide-001.png",
+      "alt": "Prefill 与 Decode 的 Triton 网格对照。Prefill 示例 grid 为 3×8×3，三条序列按多个 chunk 计算；Decode 示例 grid 为 3×16，每条序列的最后一个 token 由 16 个 Query 头分别处理。",
+      "caption": "Prefill 需要按 Q 块、头和序列展开三维网格，Decode 则主要按序列与 Query 头展开二维网格。橙色块的排列直观解释了两种内核 launch 的并行粒度差异。",
+      "source_type": "pdf",
+      "source_file": "10. Decode&PagedAttention代码详解【从0手撸vllm】.pdf",
+      "page": 1,
+      "clip_pt": [
+        490,
+        1500,
+        920,
+        1842
+      ],
+      "width": 1290,
+      "height": 1026
+    },
+    {
+      "chapter": "ch09",
+      "path": "../resources/slides/v010/slide-002.png",
+      "alt": "PagedAttention 多序列内核输入输出总图。grid 为 2×16，两条序列各有 16 个 Query 头；图中同时列出物理 K、V blocks、Block Table、序列上下文长度 52 和 20，以及两条输出张量。",
+      "caption": "这张图适合先建立 decode 内核的整体数据契约：query、K/V cache、block_tables 和 context_lens 如何共同定位历史 token，以及每个序列和 Query 头如何对应输出位置。",
+      "source_type": "pdf",
+      "source_file": "10. Decode&PagedAttention代码详解【从0手撸vllm】.pdf",
+      "page": 1,
+      "clip_pt": [
+        60,
+        3840,
+        1110,
+        4520
+      ],
+      "width": 3150,
+      "height": 2040
+    },
+    {
+      "chapter": "ch09",
+      "path": "../resources/slides/v010/slide-003.png",
+      "alt": "PagedAttention 按 chunk 遍历逻辑 KV blocks 的示例。序列逻辑块被划为 chunk0 与 chunk1，分别给出 offs_n 和 mask_n，下方用 16 格的 qk 数组暂存当前 chunk 的注意力得分。",
+      "caption": "Decode 按 chunk 遍历逻辑 token：chunk0 覆盖 0 至 15，chunk1 从 16 开始，有效长度 mask 会屏蔽最后一个不完整 chunk 的越界位置，随后才进行 online softmax。物理块定位可对照同章的多序列总图。",
+      "source_type": "pdf",
+      "source_file": "10. Decode&PagedAttention代码详解【从0手撸vllm】.pdf",
+      "page": 1,
+      "clip_pt": [
+        470,
+        5070,
+        760,
+        5450
+      ],
+      "width": 870,
+      "height": 1140
+    },
+    {
+      "chapter": "ch07",
+      "path": "../resources/slides/v011/slide-001.png",
+      "alt": "三条文本从 tokenizer 到 Scheduler，再到逻辑 KV blocks、Block Table、物理 KV blocks 和 slot_mappings 的完整映射图。不同颜色区分三条序列及其 token 进度。",
+      "caption": "左列说明每条序列如何获得 block_table 与 slot_mappings，右列说明逻辑块号如何指向不连续的物理块。把两条映射链连起来，就能理解逻辑 token 最终落入哪个缓存槽位。",
+      "source_type": "pdf",
+      "source_file": "11. KV Cache存储过程&Triton实现【从0手撸vllm】【推理引擎入门】.pdf",
+      "page": 1,
+      "clip_pt": [
+        80,
+        1880,
+        1080,
+        2430
+      ],
+      "width": 3000,
+      "height": 1650
+    },
+    {
+      "chapter": "ch07",
+      "path": "../resources/slides/v011/slide-002.png",
+      "alt": "KV Cache 写入算子的网格划分图。grid 为 31×8，横轴是 h0 到 h7 八个 KV 头，纵轴是 t0 到 t30 共 31 个 token，每个橙色块表示一个 token 与一个头的组合。",
+      "caption": "store_kvcache 的每个 Triton program 负责一个 token 的一个 KV 头：program_id(0) 对应 token_idx，program_id(1) 对应 head_idx。图中省略号表示中间 token 行，而不是额外计算维度。",
+      "source_type": "pdf",
+      "source_file": "11. KV Cache存储过程&Triton实现【从0手撸vllm】【推理引擎入门】.pdf",
+      "page": 1,
+      "clip_pt": [
+        90,
+        2480,
+        400,
+        2940
+      ],
+      "width": 930,
+      "height": 1380
+    },
+    {
+      "chapter": "ch07",
+      "path": "../resources/slides/v011/slide-003.png",
+      "alt": "KV Cache 地址计算的分层示意。上方对齐 batch 视角、序列内 token 视角、Key、Value 与 slot_mappings；中间把槽位拆分到 b0 至 b5；下方标出物理 K、V blocks 与 cache_offset 的写入位置。",
+      "caption": "读图时应沿着“token 与头—slot_idx—block_idx 和块内偏移—cache_offset”逐层下降。它把四维缓存的逻辑形状展开为指针偏移，正好对应 Triton 写入内核中的地址计算。",
+      "source_type": "pdf",
+      "source_file": "11. KV Cache存储过程&Triton实现【从0手撸vllm】【推理引擎入门】.pdf",
+      "page": 1,
+      "clip_pt": [
+        360,
+        2910,
+        1050,
+        3740
+      ],
+      "width": 2070,
+      "height": 2490
+    },
+    {
+      "chapter": "ch06",
+      "path": "../resources/slides/v012/slide-001.png",
+      "alt": "为什么需要 RoPE 的说明图。三段中文句子经 tokenizer 变成 token id；下方给出 Attention 公式，并指出只看 Q、K 内容相似度时没有 token 先后位置信息。",
+      "caption": "注意力本身并不知道 token 顺序。该图用句子到 token id 的例子引出位置编码的必要性，可作为进入旋转公式之前的问题背景。",
+      "source_type": "pdf",
+      "source_file": "12. RoPE 旋转嵌入【从0手撸vllm】【推理引擎入门】.pdf",
+      "page": 1,
+      "clip_pt": [
+        120,
+        940,
+        630,
+        1230
+      ],
+      "width": 1530,
+      "height": 870
+    },
+    {
+      "chapter": "ch06",
+      "path": "../resources/slides/v012/slide-002.png",
+      "alt": "RoPE 计算流程综合图。左侧展示随维度组增加而递减的角频率、八维 token 的前后两半分组及 theta 示例；上方是正弦和余弦曲线，右侧用单位圆、旋转角和二维旋转矩阵解释几何意义。",
+      "caption": "RoPE 把不同维度组看作具有不同角频率的二维旋转：位置决定旋转角，前后半维通过 sin、cos 组合。公式、频率曲线和单位圆三种视角可以相互校验。",
+      "source_type": "pdf",
+      "source_file": "12. RoPE 旋转嵌入【从0手撸vllm】【推理引擎入门】.pdf",
+      "page": 1,
+      "clip_pt": [
+        100,
+        1380,
+        1100,
+        1910
+      ],
+      "width": 3000,
+      "height": 1590
+    },
+    {
+      "chapter": "ch11",
+      "path": "../resources/video/v013/frame-00245.png",
+      "alt": "Sequence.block 的代码与分块结果示例。11 个 token 按 block_size 3 分为 block0 的 21、32、3，block1 的 56、78、9，block2 的 11、4、75，以及 block3 的 43、6；代码对最后一个不完整块单独切片。",
+      "caption": "Sequence 把 token 账本按固定块长暴露给引擎：完整块通过起止索引切片，末块则用 last_block_num_tokens 处理不足一块的情况。示例中的 11 个 token 因此得到 3 个完整块和 1 个含 2 个 token 的末块。",
+      "source_type": "video",
+      "source_file": "13. sequence.py 序列对象介绍 & 推理引擎中的序列管理【从0手撸vllm】_[BV1aYMM6wEsm].mp4",
+      "timestamp": "00:04:05",
+      "time_seconds": 245,
+      "width": 852,
+      "height": 480
+    },
+    {
+      "chapter": "ch14",
+      "path": "../resources/video/v014/frame-00350.png",
+      "alt": "引擎总览课程的总结页。右侧三张卡片依次概括一个请求就是一个 Sequence、一次生成包含若干次 step，以及一次 step 只做调度、执行和收尾三件事，并标出调度 69 行、执行 74 行、收尾 79 行。",
+      "caption": "LLMEngine 的主循环可压缩为一条清晰主线：请求先封装为 Sequence，随后反复执行 step；每个 step 依次完成 Scheduler 调度、ModelRunner 执行和 postprocess 收尾。",
+      "source_type": "video",
+      "source_file": "【引擎篇】01_引擎总览与Sequence【从0手撸vllm】【推理引擎入门】_[BV13UJR6oExy].mp4",
+      "timestamp": "00:05:50",
+      "time_seconds": 350,
+      "width": 852,
+      "height": 480
+    },
+    {
+      "chapter": "ch11",
+      "path": "../resources/video/v015/frame-00090.png",
+      "alt": "分页 KV 缓存中块的一生示意。9 个 token 按 4、4、1 分成三个块，下方依次列出 allocate 分配、append 生长和 deallocate 释放三个阶段。",
+      "caption": "BlockManager 围绕固定大小的 KV 块组织请求生命周期：分配逻辑块，随着新 token 到来追加或扩展，序列结束时释放。顶部例子同时说明末块可以未填满。",
+      "source_type": "video",
+      "source_file": "【引擎篇】02_分页 kv cache 块的一生【从0手撸vllm】【推理引擎入门】_[BV1qJx76CEPj].mp4",
+      "timestamp": "00:01:30",
+      "time_seconds": 90,
+      "width": 766,
+      "height": 480
+    },
+    {
+      "chapter": "ch11",
+      "path": "../resources/video/v015/frame-00210.png",
+      "alt": "block_table 作为页表的示意图。左侧逻辑块 0 含 token 1 至 4、逻辑块 1 含 token 5 至 8、逻辑块 2 含 token 9；中间 block_table 三项为 0、1、2，分别指向右侧三个物理 KV 块，底部还有空闲物理块 3 至 7。",
+      "caption": "逻辑块顺序与物理块位置通过 block_table 解耦。序列看到的是连续的逻辑 token 块，而 KV 实际写入由表项指定的物理块；新增块时只需追加一个映射项。",
+      "source_type": "video",
+      "source_file": "【引擎篇】02_分页 kv cache 块的一生【从0手撸vllm】【推理引擎入门】_[BV1qJx76CEPj].mp4",
+      "timestamp": "00:03:30",
+      "time_seconds": 210,
+      "width": 766,
+      "height": 480
+    },
+    {
+      "chapter": "ch02",
+      "path": "../resources/repo/minivllm.png",
+      "alt": "MinivLLM 官方标志，白底上由蓝色 mini、蓝黄相间的大写 V 和深灰色 LLM 字样组成。",
+      "caption": "MinivLLM 官方仓库标识，适合用于项目与源码结构介绍的章首；它是品牌图，不承担架构或数据流说明。",
+      "source_type": "repo",
+      "source_file": "minivllm.png",
+      "source_path": "assets/minivllm.png",
+      "width": 1343,
+      "height": 442
+    },
+    {
+      "chapter": "ch02",
+      "path": "../resources/repo/llama32-effect.png",
+      "alt": "MinivLLM 官方 Llama 3.2 示例运行截图，深色终端中依次展示自我介绍、列举 100 以内质数、讨论人工智能社会影响三组 Prompt 与 Completion，并保留对话特殊标记。",
+      "caption": "官方 assets 中的端到端生成示例，可对照阅读提示词模板、特殊 token 与模型 Completion 的排列方式；截图中的日期和具体回答属于原始示例运行记录。",
+      "source_type": "repo",
+      "source_file": "llama32-effect.png",
+      "source_path": "assets/llama32-effect.png",
+      "width": 1844,
+      "height": 759
+    }
+  ]
+}

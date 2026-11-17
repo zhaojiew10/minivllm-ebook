@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "diagrams": [
+    {
+      "file": "inference-overview.svg",
+      "title": "MinivLLM 端到端推理：Prefill 与 Decode 共用生成闭环",
+      "chapter": "ch02",
+      "path": "../resources/diagrams/inference-overview.svg",
+      "alt": "MinivLLM 推理主链图。顶部依次为 Prompt、Sequence、Scheduler、ModelRunner、Qwen3 或 Llama、Sampler 和 postprocess。Scheduler 分出两条路径：蓝色 Prefill 处理 prompt 中尚未计算的 token，以 FlashAttention 计算并写入 KV Cache，产生第一个生成 token；绿色 Decode 每轮读取每条运行序列的 last_token，以 PagedAttention 读取历史 K/V、写入当前 K/V，并采样一个后续 token。底部说明 postprocess 追加 token，检查 EOS、max_tokens 和 max_model_length，未停止则回到 RUNNING 继续 Decode，停止则标记 FINISHED、释放缓存块并最终解码文本。",
+      "caption": "MinivLLM 的端到端生成闭环。Prefill 与 Decode 的区别在输入规模、Attention 路径和缓存访问方式；二者都经过模型前向、采样与后处理，并围绕 Sequence 状态和分页 KV Cache 持续推进。",
+      "width": 1200,
+      "height": 980
+    },
+    {
+      "file": "tensor-parallel.svg",
+      "title": "张量并行：ColumnParallel 切输出，RowParallel 切输入并求和",
+      "chapter": "ch04",
+      "path": "../resources/diagrams/tensor-parallel.svg",
+      "alt": "两个 rank 的张量并行对照图，统一使用 PyTorch 权重 W[out,in] 和 Y=XW 转置的记法。上半部分 ColumnParallelLinear 沿权重第 0 维切分输出特征，rank 0 与 rank 1 各持有一组完整输入维度的权重行，使用同一完整 X 计算不同的局部输出 Y0、Y1；本层前向不通信，若需完整输出才额外 AllGather 并拼接。下半部分 RowParallelLinear 沿第 1 维切分输入特征，各 rank 使用对应的 X0、X1 和局部权重计算部分和 P0、P1，再经 AllReduce SUM 得到所有 rank 相同的完整 Y。底部给出 QKV 或 gate_up 接局部分片激活，再接 o_proj 或 down_proj 与 AllReduce 的组合。",
+      "caption": "ColumnParallel 与 RowParallel 的分片方向和通信位置。这里的“列”按 Y=XWᵀ 的输出列理解，因此在 PyTorch 的 W[out,in] 上切第 0 维；RowParallel 切输入维度，并用 AllReduce 合并各 rank 的部分和。",
+      "width": 1200,
+      "height": 1080
+    },
+    {
+      "file": "attention-two-dimensions.svg",
+      "title": "FlashAttention 与 PagedAttention：计算和存储两个维度",
+      "chapter": "ch08",
+      "related_chapters": [
+        "ch09"
+      ],
+      "path": "../resources/diagrams/attention-two-dimensions.svg",
+      "alt": "Attention 两个正交优化维度及阶段组合图。左上 FlashAttention 以局部因果分数块表示 Q、K、V 分块，并列出 online softmax 的运行最大值 m、归一化量 l 和输出累加器 acc 的更新公式，说明无需物化完整 N 乘 N 注意力矩阵。右上 PagedAttention 以逻辑块索引 0、1、2 映射到非连续物理块 7、2、11，给出逻辑块号、块内 slot 和全局 slot 的地址计算。下方 Prefill 路径用变长 FlashAttention 直接计算本轮 Q/K/V，同时把当前 K/V 写入分页缓存；Decode 路径每步由 last_token 生成新 Q/K/V，先写当前 K/V，再经 block table 间接读取全部历史做 PagedAttention。图中特别注明 MinivLLM 的 Decode kernel 也按 BLOCK_N 分块并维护 online softmax 状态。",
+      "caption": "FlashAttention 解决分块计算和在线归一化，PagedAttention 解决 KV Cache 的块存储与间接寻址。MinivLLM 在 Prefill 使用前者并建立缓存，在 Decode 将分页读取、分块扫描和 online softmax 组合起来。",
+      "width": 1200,
+      "height": 1080
+    },
+    {
+      "file": "kv-block-mapping.svg",
+      "title": "KV Cache 地址映射：逻辑 token 到非连续物理块",
+      "chapter": "ch11",
+      "related_chapters": [
+        "ch07",
+        "ch09"
+      ],
+      "path": "../resources/diagrams/kv-block-mapping.svg",
+      "alt": "分页 KV Cache 地址映射实例，block_size 为 4。左侧逻辑 token 0 到 11 按每四个一组形成逻辑块 0、1、2，其中 token t10 被高亮。中间先计算 t10 的逻辑块号为 10 整除 4 得 2，块内 slot 为 10 模 4 得 2；再查询 Sequence.block_table，逻辑块 0、1、2 分别对应物理块 7、2、11。右侧三个离散物理块各含 slot 0 到 3，t10 最终定位到物理块 11 的 slot 2，全局 token 槽号为 11 乘 4 加 2 得 46。底部进一步给出实际 K/V 元素偏移：物理块乘块大小加块内 slot 后，再按 KV head 数和 head_dim 展开，并说明 K、V 在各层使用相同布局的独立存储池。",
+      "caption": "从逻辑 token 到物理 KV 地址的完整链条：t // B 定位逻辑块，t % B 定位块内 slot，block_table 把逻辑块号翻译成物理块号。逻辑序列保持连续，但物理块无需连续或按序排列。",
+      "width": 1200,
+      "height": 980
+    },
+    {
+      "file": "scheduler-state.svg",
+      "title": "Scheduler 状态机：Prefill、Decode、停止与抢占后重新 Prefill",
+      "chapter": "ch12",
+      "path": "../resources/diagrams/scheduler-state.svg",
+      "alt": "Sequence 生命周期与调度异常路径图。新请求进入 WAITING，满足 KV 块、序列数和 token 预算后经 Prefill 分配块并进入 RUNNING；RUNNING 上方的 Decode 自循环表示每条序列每轮生成一个 token。Sampler 和 postprocess 追加结果后，若 EOS 且未忽略、完成 token 数达到 max_tokens，或总长度达到已设置的 max_model_length，则进入 FINISHED、释放块并移出运行队列，否则保持 RUNNING。红色虚线表示 Decode 跨块需要新块但无空闲块时，调度器抢占 running 队尾序列，释放其块、清空块表并放回 waiting 队首；token_ids 和已生成内容保留，之后重新 Prefill prompt 与全部已生成 token 来重建 KV，再恢复 Decode。",
+      "caption": "Scheduler 的正常状态迁移、停止条件与抢占恢复。Prefill 和 Decode 是每轮 schedule 的执行阶段；抢占会把状态退回 WAITING 并释放 KV，但不会删除已有 token，因此恢复时需要重新 Prefill 来重建缓存。",
+      "width": 1200,
+      "height": 1040
+    }
+  ]
+}

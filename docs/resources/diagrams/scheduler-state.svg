@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="1200" height="1040" viewBox="0 0 1200 1040" role="img" aria-labelledby="title-scheduler-state desc-scheduler-state">
+  <title id="title-scheduler-state">Scheduler 状态机：Prefill、Decode、停止与抢占后重新 Prefill</title>
+  <desc id="desc-scheduler-state">Sequence 从 WAITING 经资源分配和 Prefill 进入 RUNNING，随后在 Decode 自循环中逐 token 生成；EOS、max_tokens 或 max_model_length 使其进入 FINISHED 并释放块。Decode 需要新块但资源不足时，调度器抢占 running 队尾序列，释放其 KV 块并移回 WAITING，之后保留全部 token 重新 Prefill 以重建缓存。</desc>
+  <defs>
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#5B6B7C"/></marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#2F6FED"/></marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#2E8B68"/></marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#C94F55"/></marker>
+    <style>
+      text{font-family:'Noto Sans CJK SC','Microsoft YaHei','PingFang SC',Arial,sans-serif;fill:#17324D}
+      .mono{font-family:Consolas,'Liberation Mono',monospace}.muted{fill:#5B6B7C}.blue{fill:#2F6FED}.green{fill:#2E8B68}.red{fill:#C94F55}
+      .card{fill:#FFFFFF;stroke:#CBD6E2;stroke-width:1.4}.flow{fill:none;stroke:#5B6B7C;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow-slate)}
+    </style>
+  </defs>
+  <rect width="1200" height="1040" fill="#F6F8FC"/><rect width="1200" height="8" fill="#2F6FED"/>
+  <text x="60" y="46" font-size="14" font-weight="700" class="blue">第 12 章 · Scheduler：Prefill、Decode 与抢占</text>
+  <text x="60" y="92" font-size="32" font-weight="700">Sequence 状态机：正常运行与资源回收后的恢复</text>
+  <text x="60" y="126" font-size="16" class="muted">WAITING / RUNNING / FINISHED 描述生命周期；Prefill 与 Decode 是调度阶段，不是额外的序列状态</text>
+
+  <rect x="60" y="154" width="1080" height="68" rx="14" fill="#EEF2F6"/>
+  <text x="600" y="181" text-anchor="middle" font-size="15" font-weight="600">每轮 schedule() 只返回一个阶段：先尝试接纳 WAITING 做 Prefill；本批有 Prefill 就返回，否则安排 RUNNING 做 Decode</text>
+  <text x="600" y="207" text-anchor="middle" font-size="13" class="muted">max_num_sequences 与 max_num_batched_tokens 同时限制批次；KV free blocks 决定能否分配或追加</text>
+
+  <!-- 新请求 -->
+  <rect x="82" y="249" width="190" height="42" rx="21" fill="#EAF1FF" stroke="#2F6FED"/>
+  <text x="177" y="276" text-anchor="middle" font-size="14" font-weight="700" class="blue">add_prompt / add_sequence</text>
+  <path d="M177 291V320" fill="none" stroke="#2F6FED" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+
+  <!-- Decode 自循环 -->
+  <path d="M520 290V254H710V290" fill="none" stroke="#2E8B68" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)"/>
+  <text x="615" y="244" text-anchor="middle" font-size="14" font-weight="700" class="green">Decode：每序列每轮追加 1 token</text>
+
+  <!-- WAITING -->
+  <rect x="60" y="330" width="300" height="195" rx="16" fill="#FFFFFF" stroke="#2F6FED" stroke-width="2"/>
+  <rect x="82" y="350" width="116" height="36" rx="18" fill="#EAF1FF"/>
+  <text x="140" y="375" text-anchor="middle" font-size="18" font-weight="700" class="blue mono">WAITING</text>
+  <text x="84" y="415" font-size="14">• 新 Sequence 的默认状态</text>
+  <text x="84" y="446" font-size="14">• 保留 token_ids，等待块与预算</text>
+  <text x="84" y="477" font-size="14">• 被抢占序列也回到这里</text>
+  <text x="84" y="508" font-size="13" class="muted">只有可分配且预算允许才出队</text>
+
+  <!-- RUNNING -->
+  <rect x="450" y="290" width="330" height="250" rx="16" fill="#FFFFFF" stroke="#2E8B68" stroke-width="2"/>
+  <rect x="472" y="312" width="122" height="36" rx="18" fill="#E8F5EE"/>
+  <text x="533" y="337" text-anchor="middle" font-size="18" font-weight="700" class="green mono">RUNNING</text>
+  <text x="474" y="378" font-size="14">• Prefill：处理尚未缓存的 token</text>
+  <text x="474" y="409" font-size="14">• 采样首 token 后仍是 RUNNING</text>
+  <text x="474" y="440" font-size="14">• Decode：输入 last_token，逐轮 +1</text>
+  <text x="474" y="471" font-size="14">• 跨块追加前调用 can_append</text>
+  <text x="474" y="507" font-size="13" class="muted">未满足停止条件，就留队等待下轮</text>
+
+  <!-- FINISHED -->
+  <rect x="900" y="330" width="240" height="195" rx="16" fill="#FFFFFF" stroke="#C94F55" stroke-width="2"/>
+  <rect x="922" y="350" width="130" height="36" rx="18" fill="#FCECEE"/>
+  <text x="987" y="375" text-anchor="middle" font-size="17" font-weight="700" class="red mono">FINISHED</text>
+  <text x="924" y="416" font-size="14">• 标记生成结束</text>
+  <text x="924" y="447" font-size="14" class="mono">• deallocate(seq)</text>
+  <text x="924" y="478" font-size="14">• 从 running 队列移除</text>
+  <text x="924" y="508" font-size="12" class="muted">结果保留，最终 decode 为文本</text>
+
+  <!-- 状态迁移 -->
+  <path d="M360 390H440" fill="none" stroke="#2F6FED" stroke-width="2.6" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
+  <text x="400" y="363" text-anchor="middle" font-size="14" font-weight="700" class="blue">Prefill</text>
+  <text x="400" y="416" text-anchor="middle" font-size="11" class="muted">分配块</text>
+  <path d="M780 400H890" fill="none" stroke="#C94F55" stroke-width="2.6" stroke-linecap="round" marker-end="url(#arrow-red)"/>
+  <text x="835" y="371" text-anchor="middle" font-size="14" font-weight="700" class="red">停止条件成立</text>
+  <text x="835" y="426" text-anchor="middle" font-size="11" class="muted">postprocess</text>
+
+  <!-- 抢占逆向迁移 -->
+  <path d="M450 480H410V566H210V535" fill="none" stroke="#C94F55" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8 6" marker-end="url(#arrow-red)"/>
+  <rect x="435" y="548" width="490" height="40" rx="20" fill="#FCECEE"/>
+  <text x="680" y="574" text-anchor="middle" font-size="13" font-weight="700" class="red">资源不足：抢占 running 队尾 → 释放 KV 块 → WAITING</text>
+  <text x="60" y="609" font-size="13" class="muted">恢复仍走 WAITING → RUNNING 的 Prefill 箭头；不是从被抢占的 Decode 断点直接继续。</text>
+
+  <!-- 正常推进与停止 -->
+  <rect x="60" y="642" width="510" height="342" rx="14" class="card"/>
+  <rect x="82" y="661" width="160" height="34" rx="17" fill="#E8F5EE"/>
+  <text x="162" y="684" text-anchor="middle" font-size="16" font-weight="700" class="green">正常推进与停止</text>
+  <text x="84" y="725" font-size="13" font-weight="600">① schedule：Prefill 优先，否则 Decode</text>
+  <text x="84" y="755" font-size="13" class="muted">RUNNING Decode 每条序列消耗 1 个 token 预算</text>
+  <text x="84" y="794" font-size="13" font-weight="600">② Sampler → postprocess → append_token</text>
+  <text x="84" y="830" font-size="13" font-weight="600">③ 以下任一条件成立即 FINISHED：</text>
+  <circle cx="94" cy="859" r="4" fill="#C94F55"/><text x="108" y="864" font-size="13">EOS，且未设置 ignore_eos</text>
+  <circle cx="94" cy="889" r="4" fill="#C94F55"/><text x="108" y="894" font-size="13">completion_tokens ≥ max_tokens</text>
+  <circle cx="94" cy="919" r="4" fill="#C94F55"/><text x="108" y="924" font-size="13">设置 max_model_length，且总长度达到上限</text>
+  <text x="84" y="961" font-size="13" font-weight="600" class="green">未停止：维持 RUNNING；停止：释放该序列全部块</text>
+
+  <!-- 抢占恢复 -->
+  <rect x="630" y="642" width="510" height="342" rx="14" class="card"/>
+  <rect x="652" y="661" width="160" height="34" rx="17" fill="#FCECEE"/>
+  <text x="732" y="684" text-anchor="middle" font-size="16" font-weight="700" class="red">抢占与重新 Prefill</text>
+  <text x="654" y="725" font-size="13" font-weight="600">触发：Decode 需要新块，但没有 free block</text>
+  <text x="654" y="755" font-size="12" class="muted">仅跨越 block 边界时才需要为新 token 分配新块</text>
+  <text x="654" y="794" font-size="13" font-weight="600">① 抢占 running 队尾；仅一条时抢占自身</text>
+  <text x="654" y="829" font-size="13" font-weight="600">② deallocate：清 block_table / cached_tokens</text>
+  <text x="674" y="857" font-size="13" class="muted">token_ids、last_token 与已生成内容仍保留</text>
+  <text x="654" y="892" font-size="13" font-weight="600">③ 改为 WAITING，并放到 waiting 队首</text>
+  <text x="654" y="927" font-size="13" font-weight="600" class="blue">④ 再调度时重新 Prefill prompt + 已生成 token</text>
+  <text x="674" y="956" font-size="13" class="muted">重新分配物理块并重建 KV，随后恢复逐 token Decode</text>
+
+  <text x="60" y="1018" font-size="12" class="muted">抢占的目的，是释放显存让其他序列推进；代价是被抢占序列之后需要重算 KV。状态回退不等于文本回滚。</text>
+</svg>

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="1200" height="1080" viewBox="0 0 1200 1080" role="img" aria-labelledby="title-tensor-parallel desc-tensor-parallel">
+  <title id="title-tensor-parallel">张量并行：ColumnParallel 切输出，RowParallel 切输入并求和</title>
+  <desc id="desc-tensor-parallel">以两个 rank 和 PyTorch 权重 W[out,in] 为例，展示 ColumnParallelLinear 沿第 0 维切分输出特征，各 rank 用完整输入计算局部输出；RowParallelLinear 沿第 1 维切分输入特征，各 rank 计算部分和并经 AllReduce SUM 得到相同完整输出。</desc>
+  <defs>
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#5B6B7C"/></marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#2F6FED"/></marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#2E8B68"/></marker>
+    <style>
+      text{font-family:'Noto Sans CJK SC','Microsoft YaHei','PingFang SC',Arial,sans-serif;fill:#17324D}
+      .mono{font-family:Consolas,'Liberation Mono',monospace}.muted{fill:#5B6B7C}.blue{fill:#2F6FED}.green{fill:#2E8B68}.orange{fill:#D98818}
+      .card{fill:#FFFFFF;stroke:#CBD6E2;stroke-width:1.4}.flow{fill:none;stroke:#5B6B7C;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow-slate)}
+    </style>
+  </defs>
+  <rect width="1200" height="1080" fill="#F6F8FC"/><rect width="1200" height="8" fill="#2F6FED"/>
+  <text x="60" y="46" font-size="14" font-weight="700" class="blue">第 4 章 · 并行线性层与权重加载</text>
+  <text x="60" y="92" font-size="32" font-weight="700">ColumnParallel 与 RowParallel：切哪里，在哪里通信</text>
+  <text x="60" y="126" font-size="16" class="muted">统一按 PyTorch 的 W[out, in] 与 Y = XWᵀ 绘制；示例为 tp_size = 2，颜色表示权重所属的 rank</text>
+
+  <!-- ColumnParallel -->
+  <rect x="60" y="155" width="1080" height="395" rx="14" class="card"/>
+  <rect x="82" y="174" width="224" height="34" rx="17" fill="#EAF1FF"/>
+  <text x="194" y="197" text-anchor="middle" font-size="16" font-weight="700" class="blue">① ColumnParallelLinear</text>
+  <text x="1115" y="197" text-anchor="end" font-size="13" class="muted mono">weight_loader: narrow(dim=0)</text>
+
+  <text x="184" y="237" text-anchor="middle" font-size="14" font-weight="600">完整权重 W[out, in]</text>
+  <path d="M82 260H72V452H82" fill="none" stroke="#2F6FED" stroke-width="1.8"/>
+  <text x="55" y="356" text-anchor="middle" font-size="12" class="blue" transform="rotate(-90 55 356)">dim 0 · 输出特征</text>
+  <!-- W: 4 列，6 行；前 3 行属于 rank0，后 3 行属于 rank1 -->
+  <g stroke="#FFFFFF" stroke-width="1">
+    <rect x="100" y="260" width="42" height="32" fill="#2F6FED"/><rect x="142" y="260" width="42" height="32" fill="#2F6FED"/><rect x="184" y="260" width="42" height="32" fill="#2F6FED"/><rect x="226" y="260" width="42" height="32" fill="#2F6FED"/>
+    <rect x="100" y="292" width="42" height="32" fill="#4B82EF"/><rect x="142" y="292" width="42" height="32" fill="#4B82EF"/><rect x="184" y="292" width="42" height="32" fill="#4B82EF"/><rect x="226" y="292" width="42" height="32" fill="#4B82EF"/>
+    <rect x="100" y="324" width="42" height="32" fill="#6C98F2"/><rect x="142" y="324" width="42" height="32" fill="#6C98F2"/><rect x="184" y="324" width="42" height="32" fill="#6C98F2"/><rect x="226" y="324" width="42" height="32" fill="#6C98F2"/>
+    <rect x="100" y="356" width="42" height="32" fill="#D98818"/><rect x="142" y="356" width="42" height="32" fill="#D98818"/><rect x="184" y="356" width="42" height="32" fill="#D98818"/><rect x="226" y="356" width="42" height="32" fill="#D98818"/>
+    <rect x="100" y="388" width="42" height="32" fill="#E19E42"/><rect x="142" y="388" width="42" height="32" fill="#E19E42"/><rect x="184" y="388" width="42" height="32" fill="#E19E42"/><rect x="226" y="388" width="42" height="32" fill="#E19E42"/>
+    <rect x="100" y="420" width="42" height="32" fill="#E8B36B"/><rect x="142" y="420" width="42" height="32" fill="#E8B36B"/><rect x="184" y="420" width="42" height="32" fill="#E8B36B"/><rect x="226" y="420" width="42" height="32" fill="#E8B36B"/>
+  </g>
+  <text x="184" y="474" text-anchor="middle" font-size="12" class="muted">横向整块保留 in；纵向切出 W₀ / W₁</text>
+
+  <text x="535" y="232" text-anchor="middle" font-size="13" font-weight="600" class="muted">同一完整 X 复制到各 rank</text>
+  <path d="M276 308H332V285H380" class="flow"/><path d="M276 404H332V415H380" class="flow"/>
+  <rect x="390" y="240" width="300" height="100" rx="12" fill="#EAF1FF" stroke="#2F6FED" stroke-width="1.5"/>
+  <text x="410" y="268" font-size="15" font-weight="700" class="blue">rank 0 · 本地权重 W₀</text>
+  <text x="410" y="295" font-size="13" class="mono">W₀ = W[0:out/2, :]</text>
+  <text x="410" y="322" font-size="15" font-weight="600" class="mono">Y₀ = X · W₀ᵀ</text>
+  <rect x="390" y="375" width="300" height="100" rx="12" fill="#FFF3DE" stroke="#D98818" stroke-width="1.5"/>
+  <text x="410" y="403" font-size="15" font-weight="700" class="orange">rank 1 · 本地权重 W₁</text>
+  <text x="410" y="430" font-size="13" class="mono">W₁ = W[out/2:out, :]</text>
+  <text x="410" y="457" font-size="15" font-weight="600" class="mono">Y₁ = X · W₁ᵀ</text>
+
+  <path d="M690 290H810" fill="none" stroke="#2F6FED" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+  <path d="M690 425H810" fill="none" stroke="#D98818" stroke-width="2.2" marker-end="url(#arrow-slate)"/>
+  <rect x="820" y="240" width="280" height="100" rx="12" fill="#EAF1FF" stroke="#2F6FED" stroke-width="1.5"/>
+  <text x="960" y="272" text-anchor="middle" font-size="16" font-weight="700" class="blue">局部输出 Y₀</text>
+  <text x="960" y="300" text-anchor="middle" font-size="13" class="mono">[N, out/2]</text>
+  <text x="960" y="324" text-anchor="middle" font-size="12" class="muted">只含前一半输出特征</text>
+  <rect x="820" y="375" width="280" height="100" rx="12" fill="#FFF3DE" stroke="#D98818" stroke-width="1.5"/>
+  <text x="960" y="407" text-anchor="middle" font-size="16" font-weight="700" class="orange">局部输出 Y₁</text>
+  <text x="960" y="435" text-anchor="middle" font-size="13" class="mono">[N, out/2]</text>
+  <text x="960" y="459" text-anchor="middle" font-size="12" class="muted">只含后一半输出特征</text>
+  <text x="100" y="515" font-size="13" class="muted">本层 forward 不通信；输出分片通常直接供给下一层 RowParallel。</text>
+  <text x="1100" y="515" text-anchor="end" font-size="12" class="muted">若单独恢复完整 Y：AllGather + 最后一维 concat</text>
+
+  <!-- RowParallel -->
+  <rect x="60" y="575" width="1080" height="400" rx="14" class="card"/>
+  <rect x="82" y="594" width="208" height="34" rx="17" fill="#E8F5EE"/>
+  <text x="186" y="617" text-anchor="middle" font-size="16" font-weight="700" class="green">② RowParallelLinear</text>
+  <text x="1115" y="617" text-anchor="end" font-size="13" class="muted mono">weight_loader: narrow(dim=1)</text>
+
+  <text x="214" y="657" text-anchor="middle" font-size="14" font-weight="600">完整权重 W[out, in]</text>
+  <path d="M100 678V668H328V678" fill="none" stroke="#2E8B68" stroke-width="1.8"/>
+  <text x="214" y="665" text-anchor="middle" font-size="12" class="green">dim 1 · 输入特征</text>
+  <!-- W: 6 列，4 行；前 3 列属于 rank0，后 3 列属于 rank1 -->
+  <g stroke="#FFFFFF" stroke-width="1">
+    <rect x="100" y="690" width="38" height="36" fill="#2F6FED"/><rect x="138" y="690" width="38" height="36" fill="#2F6FED"/><rect x="176" y="690" width="38" height="36" fill="#2F6FED"/><rect x="214" y="690" width="38" height="36" fill="#D98818"/><rect x="252" y="690" width="38" height="36" fill="#D98818"/><rect x="290" y="690" width="38" height="36" fill="#D98818"/>
+    <rect x="100" y="726" width="38" height="36" fill="#4B82EF"/><rect x="138" y="726" width="38" height="36" fill="#4B82EF"/><rect x="176" y="726" width="38" height="36" fill="#4B82EF"/><rect x="214" y="726" width="38" height="36" fill="#E19E42"/><rect x="252" y="726" width="38" height="36" fill="#E19E42"/><rect x="290" y="726" width="38" height="36" fill="#E19E42"/>
+    <rect x="100" y="762" width="38" height="36" fill="#6C98F2"/><rect x="138" y="762" width="38" height="36" fill="#6C98F2"/><rect x="176" y="762" width="38" height="36" fill="#6C98F2"/><rect x="214" y="762" width="38" height="36" fill="#E8B36B"/><rect x="252" y="762" width="38" height="36" fill="#E8B36B"/><rect x="290" y="762" width="38" height="36" fill="#E8B36B"/>
+    <rect x="100" y="798" width="38" height="36" fill="#8AADF4"/><rect x="138" y="798" width="38" height="36" fill="#8AADF4"/><rect x="176" y="798" width="38" height="36" fill="#8AADF4"/><rect x="214" y="798" width="38" height="36" fill="#EDC58D"/><rect x="252" y="798" width="38" height="36" fill="#EDC58D"/><rect x="290" y="798" width="38" height="36" fill="#EDC58D"/>
+  </g>
+  <text x="214" y="857" text-anchor="middle" font-size="12" class="muted">纵向整块保留 out；横向切出 W₀ / W₁</text>
+
+  <path d="M338 742H372V705H410" class="flow"/><path d="M338 780H372V825H410" class="flow"/>
+  <rect x="420" y="665" width="280" height="96" rx="12" fill="#EAF1FF" stroke="#2F6FED" stroke-width="1.5"/>
+  <text x="440" y="693" font-size="15" font-weight="700" class="blue">rank 0 · 输入分片 X₀</text>
+  <text x="440" y="720" font-size="12" class="mono">X₀ = X[:, 0:in/2]</text>
+  <text x="440" y="746" font-size="14" font-weight="600" class="mono">P₀ = X₀ · W₀ᵀ</text>
+  <rect x="420" y="790" width="280" height="96" rx="12" fill="#FFF3DE" stroke="#D98818" stroke-width="1.5"/>
+  <text x="440" y="818" font-size="15" font-weight="700" class="orange">rank 1 · 输入分片 X₁</text>
+  <text x="440" y="845" font-size="12" class="mono">X₁ = X[:, in/2:in]</text>
+  <text x="440" y="871" font-size="14" font-weight="600" class="mono">P₁ = X₁ · W₁ᵀ</text>
+
+  <path d="M700 713H746V770H790" fill="none" stroke="#2F6FED" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
+  <path d="M700 838H746V770H790" fill="none" stroke="#D98818" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-slate)"/>
+  <rect x="800" y="722" width="150" height="98" rx="14" fill="#E8F5EE" stroke="#2E8B68" stroke-width="2"/>
+  <text x="875" y="756" text-anchor="middle" font-size="16" font-weight="700" class="green">AllReduce</text>
+  <text x="875" y="784" text-anchor="middle" font-size="17" font-weight="700" class="green mono">SUM</text>
+  <text x="875" y="807" text-anchor="middle" font-size="11" class="muted">跨 rank 部分和</text>
+  <path d="M950 771H965" fill="none" stroke="#2E8B68" stroke-width="2.3" marker-end="url(#arrow-green)"/>
+  <rect x="975" y="722" width="145" height="98" rx="14" fill="#E8F5EE" stroke="#2E8B68" stroke-width="1.5"/>
+  <text x="1047" y="752" text-anchor="middle" font-size="16" font-weight="700" class="green">完整 Y</text>
+  <text x="1047" y="780" text-anchor="middle" font-size="13" class="mono">Y = P₀ + P₁</text>
+  <text x="1047" y="804" text-anchor="middle" font-size="11" class="muted">各 rank 结果相同</text>
+  <text x="100" y="925" font-size="13" class="muted">每个 rank 先算部分和；AllReduce 后每个 rank 都得到同一完整输出（图中省略 bias）。</text>
+  <text x="100" y="953" font-size="16" font-weight="600" class="mono">Y = XWᵀ = X₀W₀ᵀ + X₁W₁ᵀ</text>
+  <text x="1115" y="953" text-anchor="end" font-size="12" class="muted">局部矩阵形状：[out, in/2]</text>
+
+  <rect x="60" y="1000" width="1080" height="56" rx="14" fill="#EEF2F6"/>
+  <text x="600" y="1025" text-anchor="middle" font-size="14" font-weight="600">模型中的常见衔接：QKV / gate_up（Column）→ 局部激活 → o_proj / down_proj（Row）→ AllReduce</text>
+  <text x="600" y="1047" text-anchor="middle" font-size="12" class="muted">第一层输出特征的分片方式，正好成为第二层输入特征的分片方式</text>
+</svg>

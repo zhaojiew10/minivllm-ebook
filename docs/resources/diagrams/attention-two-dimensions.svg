@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="1200" height="1080" viewBox="0 0 1200 1080" role="img" aria-labelledby="title-attention-two-dimensions desc-attention-two-dimensions">
+  <title id="title-attention-two-dimensions">FlashAttention 与 PagedAttention：计算和存储两个维度</title>
+  <desc id="desc-attention-two-dimensions">左侧说明 FlashAttention 通过 Q、K、V 分块与 online softmax 避免物化完整注意力矩阵；右侧说明 PagedAttention 用固定大小物理块和 block table 间接寻址。下方展示 MinivLLM 在 Prefill 使用变长 FlashAttention 并写入 KV Cache，在 Decode 写入当前 KV 后通过分页缓存读取历史，且分页 Decode 同样采用分块和 online softmax。</desc>
+  <defs>
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#5B6B7C"/></marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#2F6FED"/></marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#2E8B68"/></marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#7556B3"/></marker>
+    <style>
+      text{font-family:'Noto Sans CJK SC','Microsoft YaHei','PingFang SC',Arial,sans-serif;fill:#17324D}
+      .mono{font-family:Consolas,'Liberation Mono',monospace}.muted{fill:#5B6B7C}.blue{fill:#2F6FED}.green{fill:#2E8B68}.purple{fill:#7556B3}
+      .card{fill:#FFFFFF;stroke:#CBD6E2;stroke-width:1.4}.flow{fill:none;stroke:#5B6B7C;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow-slate)}
+    </style>
+  </defs>
+  <rect width="1200" height="1080" fill="#F6F8FC"/><rect width="1200" height="8" fill="#2F6FED"/>
+  <text x="60" y="46" font-size="14" font-weight="700" class="blue">第 8—9 章 · Attention 计算与 KV Cache</text>
+  <text x="60" y="92" font-size="32" font-weight="700">FlashAttention × PagedAttention：不要混为同一个优化</text>
+  <text x="60" y="126" font-size="16" class="muted">一个回答“注意力怎样分块计算”，另一个回答“历史 K/V 怎样分块存放并找到”；Decode 将两者思路组合起来</text>
+
+  <!-- FlashAttention：计算维度 -->
+  <rect x="60" y="155" width="520" height="370" rx="14" class="card"/>
+  <rect x="82" y="174" width="180" height="34" rx="17" fill="#EAF1FF"/>
+  <text x="172" y="197" text-anchor="middle" font-size="16" font-weight="700" class="blue">FlashAttention</text>
+  <text x="556" y="197" text-anchor="end" font-size="13" font-weight="600" class="blue">计算维度</text>
+  <text x="85" y="232" font-size="14" font-weight="600">Q 块 × K/V 块：只保留局部分数</text>
+  <text x="170" y="260" text-anchor="middle" font-size="12" class="muted mono">Sᵢⱼ = QᵢKⱼᵀ（causal）</text>
+  <!-- 局部 4×4 注意力块，下三角有效 -->
+  <g stroke="#FFFFFF" stroke-width="1.2">
+    <rect x="90" y="278" width="40" height="40" fill="#2F6FED"/><rect x="130" y="278" width="40" height="40" fill="#EEF2F6"/><rect x="170" y="278" width="40" height="40" fill="#EEF2F6"/><rect x="210" y="278" width="40" height="40" fill="#EEF2F6"/>
+    <rect x="90" y="318" width="40" height="40" fill="#4B82EF"/><rect x="130" y="318" width="40" height="40" fill="#4B82EF"/><rect x="170" y="318" width="40" height="40" fill="#EEF2F6"/><rect x="210" y="318" width="40" height="40" fill="#EEF2F6"/>
+    <rect x="90" y="358" width="40" height="40" fill="#6C98F2"/><rect x="130" y="358" width="40" height="40" fill="#6C98F2"/><rect x="170" y="358" width="40" height="40" fill="#6C98F2"/><rect x="210" y="358" width="40" height="40" fill="#EEF2F6"/>
+    <rect x="90" y="398" width="40" height="40" fill="#8AADF4"/><rect x="130" y="398" width="40" height="40" fill="#8AADF4"/><rect x="170" y="398" width="40" height="40" fill="#8AADF4"/><rect x="210" y="398" width="40" height="40" fill="#8AADF4"/>
+  </g>
+  <text x="170" y="461" text-anchor="middle" font-size="12" class="muted">灰色：mask；蓝色：本块有效分数</text>
+  <text x="170" y="486" text-anchor="middle" font-size="12" class="muted">逐个 K/V 块扫描，不保留整张 S</text>
+
+  <text x="285" y="267" font-size="13" font-weight="700" class="blue">Online softmax：边扫描边修正</text>
+  <text x="285" y="298" font-size="13" class="mono">m′ = max(m, rowmax(Sᵢⱼ))</text>
+  <text x="285" y="327" font-size="13" class="mono">α = exp(m − m′)</text>
+  <text x="285" y="356" font-size="13" class="mono">P = exp(Sᵢⱼ − m′)</text>
+  <text x="285" y="385" font-size="13" class="mono">acc ← α·acc + P·Vⱼ</text>
+  <text x="285" y="414" font-size="13" class="mono">l ← α·l + rowsum(P)</text>
+  <text x="285" y="443" font-size="13" class="mono">m ← m′</text>
+  <text x="285" y="477" font-size="13" font-weight="600" class="mono">最终：O = acc / l</text>
+  <text x="285" y="505" font-size="12" class="muted">运行状态只有 m、l 与输出累加器 acc</text>
+
+  <!-- PagedAttention：存储维度 -->
+  <rect x="620" y="155" width="520" height="370" rx="14" class="card"/>
+  <rect x="642" y="174" width="184" height="34" rx="17" fill="#F1ECFA"/>
+  <text x="734" y="197" text-anchor="middle" font-size="16" font-weight="700" class="purple">PagedAttention</text>
+  <text x="1116" y="197" text-anchor="end" font-size="13" font-weight="600" class="purple">存储 / 寻址维度</text>
+  <text x="645" y="232" font-size="14" font-weight="600">固定大小 KV 块 + block table 间接寻址</text>
+  <text x="710" y="260" text-anchor="middle" font-size="12" class="muted">逻辑块索引</text>
+  <rect x="650" y="276" width="120" height="42" rx="7" fill="#EAF1FF" stroke="#2F6FED"/><text x="710" y="303" text-anchor="middle" font-size="13" class="mono">[0] → 7</text>
+  <rect x="650" y="328" width="120" height="42" rx="7" fill="#E8F5EE" stroke="#2E8B68"/><text x="710" y="355" text-anchor="middle" font-size="13" class="mono">[1] → 2</text>
+  <rect x="650" y="380" width="120" height="42" rx="7" fill="#F1ECFA" stroke="#7556B3"/><text x="710" y="407" text-anchor="middle" font-size="13" class="mono">[2] → 11</text>
+  <text x="855" y="260" text-anchor="middle" font-size="12" class="muted">非连续物理块</text>
+  <path d="M770 297C850 297 850 385 930 385" fill="none" stroke="#2F6FED" stroke-width="1.8" marker-end="url(#arrow-blue)"/>
+  <path d="M770 349H930" fill="none" stroke="#2E8B68" stroke-width="1.8" marker-end="url(#arrow-green)"/>
+  <path d="M770 401C850 401 850 297 930 297" fill="none" stroke="#7556B3" stroke-width="1.8" marker-end="url(#arrow-purple)"/>
+  <rect x="940" y="273" width="170" height="48" rx="8" fill="#F1ECFA" stroke="#7556B3"/><text x="1025" y="303" text-anchor="middle" font-size="14" font-weight="700" class="purple">physical block 11</text>
+  <rect x="940" y="325" width="170" height="48" rx="8" fill="#E8F5EE" stroke="#2E8B68"/><text x="1025" y="355" text-anchor="middle" font-size="14" font-weight="700" class="green">physical block 2</text>
+  <rect x="940" y="377" width="170" height="48" rx="8" fill="#EAF1FF" stroke="#2F6FED"/><text x="1025" y="407" text-anchor="middle" font-size="14" font-weight="700" class="blue">physical block 7</text>
+  <text x="650" y="459" font-size="13" class="mono">logical = t // B；slot = t % B</text>
+  <text x="650" y="486" font-size="13" class="mono">physical = block_table[logical]</text>
+  <text x="650" y="513" font-size="13" class="mono">global_slot = physical × B + slot</text>
+
+  <!-- 正交关系 -->
+  <rect x="60" y="550" width="1080" height="64" rx="14" fill="#FFF3DE" stroke="#D98818" stroke-width="1.4"/>
+  <text x="600" y="577" text-anchor="middle" font-size="15" font-weight="700" fill="#D98818">两个维度可以组合：分页缓存决定“从哪里取 K/V”，分块计算与 online softmax 决定“取来后怎样算”</text>
+  <text x="600" y="601" text-anchor="middle" font-size="13" class="muted">MinivLLM 的 Paged Decode kernel 同样按 BLOCK_N 扫描历史 token，并维护 m、l、acc</text>
+
+  <!-- Prefill 组合 -->
+  <rect x="60" y="640" width="1080" height="180" rx="14" fill="#FFFFFF" stroke="#2F6FED" stroke-width="1.5"/>
+  <rect x="82" y="659" width="102" height="34" rx="17" fill="#EAF1FF"/>
+  <text x="133" y="682" text-anchor="middle" font-size="16" font-weight="700" class="blue">Prefill</text>
+  <text x="85" y="718" font-size="12" class="muted">一次处理 prompt</text>
+  <text x="85" y="740" font-size="12" class="muted">建立初始上下文</text>
+  <rect x="210" y="666" width="240" height="94" rx="12" fill="#EAF1FF" stroke="#2F6FED"/>
+  <text x="330" y="696" text-anchor="middle" font-size="15" font-weight="700" class="blue">本轮全部 Q / K / V</text>
+  <text x="330" y="724" text-anchor="middle" font-size="12" class="muted">cu_seqlens_q 区分变长序列</text>
+  <text x="330" y="746" text-anchor="middle" font-size="12" class="muted">当前 K/V 先写入 KV Cache</text>
+  <path d="M450 713H490" fill="none" stroke="#2F6FED" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+  <rect x="500" y="666" width="240" height="94" rx="12" fill="#EAF1FF" stroke="#2F6FED"/>
+  <text x="620" y="698" text-anchor="middle" font-size="16" font-weight="700" class="blue">FlashAttention</text>
+  <text x="620" y="727" text-anchor="middle" font-size="12" class="muted">Q/K/V 分块 + causal mask</text>
+  <text x="620" y="749" text-anchor="middle" font-size="12" class="muted">online softmax 累积输出</text>
+  <path d="M740 713H780" class="flow"/>
+  <rect x="790" y="666" width="320" height="94" rx="12" class="card"/>
+  <text x="950" y="698" text-anchor="middle" font-size="15" font-weight="700">输出 → Sampler → 首个生成 token</text>
+  <text x="950" y="727" text-anchor="middle" font-size="12" class="muted">后续该 token 成为 Decode 的 last_token</text>
+  <text x="950" y="749" text-anchor="middle" font-size="12" class="purple">分页缓存保留 prompt 的逐层 K/V</text>
+  <text x="210" y="797" font-size="12" class="muted">当前源码：Prefill 直接对本 pass 的 K/V 做 FlashAttention；注意力计算本身不通过 block_tables 读取历史块。</text>
+
+  <!-- Decode 组合 -->
+  <rect x="60" y="845" width="1080" height="190" rx="14" fill="#FFFFFF" stroke="#2E8B68" stroke-width="1.5"/>
+  <rect x="82" y="864" width="102" height="34" rx="17" fill="#E8F5EE"/>
+  <text x="133" y="887" text-anchor="middle" font-size="16" font-weight="700" class="green">Decode</text>
+  <text x="85" y="924" font-size="12" class="muted">每序列每步 1 token</text>
+  <text x="85" y="946" font-size="12" class="muted">复用全部历史 K/V</text>
+  <rect x="210" y="871" width="240" height="94" rx="12" fill="#E8F5EE" stroke="#2E8B68"/>
+  <text x="330" y="901" text-anchor="middle" font-size="15" font-weight="700" class="green">last_token → 新 Q/K/V</text>
+  <text x="330" y="929" text-anchor="middle" font-size="12" class="muted">slot_mapping 定位当前写入位置</text>
+  <text x="330" y="951" text-anchor="middle" font-size="12" class="muted">当前 K/V 写入分页缓存</text>
+  <path d="M450 918H490" fill="none" stroke="#2E8B68" stroke-width="2.2" marker-end="url(#arrow-green)"/>
+  <rect x="500" y="871" width="240" height="94" rx="12" fill="#F1ECFA" stroke="#7556B3"/>
+  <text x="620" y="903" text-anchor="middle" font-size="16" font-weight="700" class="purple">PagedAttention</text>
+  <text x="620" y="932" text-anchor="middle" font-size="12" class="muted">block_tables 间接读取全部历史</text>
+  <text x="620" y="954" text-anchor="middle" font-size="12" class="muted">BLOCK_N 分块 + online softmax</text>
+  <path d="M740 918H780" class="flow"/>
+  <rect x="790" y="871" width="320" height="94" rx="12" class="card"/>
+  <text x="950" y="903" text-anchor="middle" font-size="15" font-weight="700">输出 → Sampler → 下一 token</text>
+  <text x="950" y="932" text-anchor="middle" font-size="12" class="muted">postprocess 追加并检查停止条件</text>
+  <text x="950" y="954" text-anchor="middle" font-size="12" class="green">未停止：带着更新后的缓存继续 Decode</text>
+  <text x="210" y="1004" font-size="12" class="muted">每步只对新 query 做注意力，不重算整段 prompt；历史块可以离散分布，无需为了增长而整体搬迁。</text>
+</svg>

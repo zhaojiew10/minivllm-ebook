@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="1200" height="980" viewBox="0 0 1200 980" role="img" aria-labelledby="title-inference-overview desc-inference-overview">
+  <title id="title-inference-overview">MinivLLM 端到端推理：Prefill 与 Decode 共用生成闭环</title>
+  <desc id="desc-inference-overview">从 Prompt 经 Sequence、Scheduler、ModelRunner、Qwen3 或 Llama、Sampler 到 postprocess 的主链路，展开 Prefill 和 Decode 两条执行路径，以及二者与 KV Cache、停止检查和资源释放的关系。</desc>
+  <defs>
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#5B6B7C"/></marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#2F6FED"/></marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#2E8B68"/></marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#7556B3"/></marker>
+    <style>
+      text{font-family:'Noto Sans CJK SC','Microsoft YaHei','PingFang SC',Arial,sans-serif;fill:#17324D}
+      .mono{font-family:Consolas,'Liberation Mono',monospace}
+      .muted{fill:#5B6B7C}.blue{fill:#2F6FED}.green{fill:#2E8B68}.purple{fill:#7556B3}.orange{fill:#D98818}
+      .card{fill:#FFFFFF;stroke:#CBD6E2;stroke-width:1.4}.flow{fill:none;stroke:#5B6B7C;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow-slate)}
+    </style>
+  </defs>
+  <rect width="1200" height="980" fill="#F6F8FC"/>
+  <rect width="1200" height="8" fill="#2F6FED"/>
+  <text x="60" y="46" font-size="14" font-weight="700" class="blue">第 2 章 · MinivLLM 架构与端到端流程</text>
+  <text x="60" y="92" font-size="32" font-weight="700">从 Prompt 到文本：两条路径，一个生成闭环</text>
+  <text x="60" y="126" font-size="16" class="muted">Scheduler 决定本步处理谁；ModelRunner 准备上下文并执行模型；postprocess 让状态与缓存继续向前</text>
+
+  <!-- 主调用链 -->
+  <g>
+    <rect x="60" y="170" width="136" height="88" rx="12" fill="#FFFFFF" stroke="#2F6FED" stroke-width="1.5"/>
+    <text x="128" y="200" text-anchor="middle" font-size="17" font-weight="700" class="blue">Prompt</text>
+    <text x="128" y="225" text-anchor="middle" font-size="13" class="muted">提示词字符串</text>
+    <text x="128" y="246" text-anchor="middle" font-size="11" class="muted mono">tokenizer.encode</text>
+
+    <rect x="214" y="170" width="136" height="88" rx="12" class="card"/>
+    <text x="282" y="200" text-anchor="middle" font-size="16" font-weight="700">Sequence</text>
+    <text x="282" y="225" text-anchor="middle" font-size="13" class="muted">token_ids + 状态</text>
+    <text x="282" y="246" text-anchor="middle" font-size="11" class="muted mono">block_table</text>
+
+    <rect x="369" y="170" width="136" height="88" rx="12" class="card"/>
+    <text x="437" y="200" text-anchor="middle" font-size="16" font-weight="700">Scheduler</text>
+    <text x="437" y="225" text-anchor="middle" font-size="13" class="muted">排队、预算、抢占</text>
+    <text x="437" y="246" text-anchor="middle" font-size="11" class="muted mono">schedule()</text>
+
+    <rect x="523" y="170" width="136" height="88" rx="12" fill="#FFFFFF" stroke="#168C8C" stroke-width="1.5"/>
+    <text x="591" y="200" text-anchor="middle" font-size="15" font-weight="700" fill="#168C8C">ModelRunner</text>
+    <text x="591" y="225" text-anchor="middle" font-size="13" class="muted">准备输入与上下文</text>
+    <text x="591" y="246" text-anchor="middle" font-size="11" class="muted mono">run(seqs, phase)</text>
+
+    <rect x="678" y="170" width="136" height="88" rx="12" class="card"/>
+    <text x="746" y="198" text-anchor="middle" font-size="15" font-weight="700">Qwen3 / Llama</text>
+    <text x="746" y="224" text-anchor="middle" font-size="13" class="muted">逐层模型前向</text>
+    <text x="746" y="246" text-anchor="middle" font-size="11" class="muted mono">hidden → logits</text>
+
+    <rect x="832" y="170" width="136" height="88" rx="12" fill="#FFF3DE" stroke="#D98818" stroke-width="1.5"/>
+    <text x="900" y="200" text-anchor="middle" font-size="16" font-weight="700" class="orange">Sampler</text>
+    <text x="900" y="225" text-anchor="middle" font-size="13" class="muted">温度缩放 + 采样</text>
+    <text x="900" y="246" text-anchor="middle" font-size="11" class="muted mono">next token_id</text>
+
+    <rect x="987" y="170" width="136" height="88" rx="12" fill="#FFFFFF" stroke="#C94F55" stroke-width="1.5"/>
+    <text x="1055" y="200" text-anchor="middle" font-size="15" font-weight="700" fill="#C94F55">postprocess</text>
+    <text x="1055" y="225" text-anchor="middle" font-size="13" class="muted">追加、停止、释放</text>
+    <text x="1055" y="246" text-anchor="middle" font-size="11" class="muted mono">update Sequence</text>
+
+    <path d="M196 214H208" class="flow"/><path d="M350 214H363" class="flow"/>
+    <path d="M505 214H517" class="flow"/><path d="M659 214H672" class="flow"/>
+    <path d="M814 214H826" class="flow"/><path d="M968 214H981" class="flow"/>
+  </g>
+
+  <!-- Scheduler 分支 -->
+  <path d="M437 258V302H320V332" fill="none" stroke="#2F6FED" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
+  <path d="M437 302H880V332" fill="none" stroke="#2E8B68" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)"/>
+  <text x="659" y="292" text-anchor="middle" font-size="13" font-weight="600" class="muted">schedule() → (scheduled_sequences, is_prefill)</text>
+
+  <!-- Prefill -->
+  <rect x="60" y="340" width="520" height="250" rx="14" fill="#FFFFFF" stroke="#2F6FED" stroke-width="1.5"/>
+  <rect x="82" y="358" width="118" height="32" rx="16" fill="#EAF1FF"/>
+  <text x="141" y="380" text-anchor="middle" font-size="15" font-weight="700" class="blue">Prefill 路径</text>
+  <text x="556" y="379" text-anchor="end" font-size="12" class="muted mono">is_prefill = True</text>
+  <circle cx="93" cy="421" r="5" fill="#2F6FED"/><text x="110" y="427" font-size="14">输入：prompt 中尚未计算的 token</text>
+  <circle cx="93" cy="455" r="5" fill="#2F6FED"/><text x="110" y="461" font-size="14">准备：input_ids · cu_seqlens_q · slot_mapping</text>
+  <circle cx="93" cy="489" r="5" fill="#2F6FED"/><text x="110" y="495" font-size="14">计算：FlashAttention 处理本轮 Q/K/V</text>
+  <circle cx="93" cy="523" r="5" fill="#7556B3"/><text x="110" y="529" font-size="14">缓存：逐层写入各 token 的 K/V</text>
+  <circle cx="93" cy="557" r="5" fill="#D98818"/><text x="110" y="563" font-size="14">输出：最后位置 logits → 第 1 个生成 token</text>
+
+  <!-- Decode -->
+  <rect x="620" y="340" width="520" height="250" rx="14" fill="#FFFFFF" stroke="#2E8B68" stroke-width="1.5"/>
+  <rect x="642" y="358" width="124" height="32" rx="16" fill="#E8F5EE"/>
+  <text x="704" y="380" text-anchor="middle" font-size="15" font-weight="700" class="green">Decode 路径</text>
+  <text x="1116" y="379" text-anchor="end" font-size="12" class="muted mono">is_prefill = False</text>
+  <circle cx="653" cy="421" r="5" fill="#2E8B68"/><text x="670" y="427" font-size="14">输入：每条 RUNNING 序列的 last_token</text>
+  <circle cx="653" cy="455" r="5" fill="#2E8B68"/><text x="670" y="461" font-size="14">准备：context_lens · block_tables · slot_mapping</text>
+  <circle cx="653" cy="489" r="5" fill="#2E8B68"/><text x="670" y="495" font-size="14">计算：PagedAttention 读取历史 K/V</text>
+  <circle cx="653" cy="523" r="5" fill="#7556B3"/><text x="670" y="529" font-size="14">缓存：当前 token 的 K/V 写入对应 slot</text>
+  <circle cx="653" cy="557" r="5" fill="#D98818"/><text x="670" y="563" font-size="14">输出：每条序列采样 1 token；可重放 CUDA Graph</text>
+
+  <rect x="355" y="610" width="490" height="42" rx="21" fill="#EEF2F6"/>
+  <text x="600" y="637" text-anchor="middle" font-size="14" font-weight="600" class="muted">两条路径均在模型末端得到 logits，再交给 Sampler</text>
+
+  <!-- KV Cache -->
+  <path d="M320 590V660H400V677" fill="none" stroke="#7556B3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-purple)"/>
+  <path d="M880 590V660H800V677" fill="none" stroke="#7556B3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-purple)"/>
+  <text x="276" y="654" text-anchor="end" font-size="12" font-weight="600" class="purple">写入 prompt KV</text>
+  <text x="924" y="654" font-size="12" font-weight="600" class="purple">读历史 · 写当前</text>
+  <rect x="170" y="685" width="860" height="130" rx="14" fill="#F1ECFA" stroke="#7556B3" stroke-width="1.5"/>
+  <text x="200" y="719" font-size="17" font-weight="700" class="purple">分页 KV Cache：跨步保留注意力上下文</text>
+  <text x="1000" y="719" text-anchor="end" font-size="12" class="muted">每层分别持有 K Cache 与 V Cache</text>
+  <g font-size="13" text-anchor="middle">
+    <rect x="200" y="742" width="130" height="46" rx="8" fill="#FFFFFF" stroke="#7556B3"/><text x="265" y="762" class="purple" font-weight="700">physical block 7</text><text x="265" y="780" class="muted" font-size="11">K/V slots</text>
+    <rect x="350" y="742" width="130" height="46" rx="8" fill="#FFFFFF" stroke="#7556B3"/><text x="415" y="762" class="purple" font-weight="700">physical block 2</text><text x="415" y="780" class="muted" font-size="11">K/V slots</text>
+    <rect x="500" y="742" width="130" height="46" rx="8" fill="#FFFFFF" stroke="#7556B3"/><text x="565" y="762" class="purple" font-weight="700">physical block 11</text><text x="565" y="780" class="muted" font-size="11">K/V slots</text>
+  </g>
+  <text x="665" y="759" font-size="13" class="muted">block_table 建立逻辑块 → 物理块映射</text>
+  <text x="665" y="782" font-size="13" class="muted">slot_mapping 指定当前 token 的写入位置</text>
+
+  <!-- 后处理闭环 -->
+  <rect x="60" y="844" width="1080" height="100" rx="14" class="card"/>
+  <text x="88" y="875" font-size="15" font-weight="700" fill="#C94F55">postprocess</text>
+  <text x="218" y="875" font-size="14" class="mono">token_id → append_token</text>
+  <path d="M403 870H438" class="flow"/>
+  <text x="454" y="875" font-size="14">检查 EOS / max_tokens / max_model_length</text>
+  <path d="M759 870H794" class="flow"/>
+  <text x="810" y="875" font-size="14" font-weight="600" fill="#C94F55">是：FINISHED + deallocate</text>
+  <text x="600" y="917" text-anchor="middle" font-size="14" class="muted">否：保持 RUNNING，下一轮进入 Decode；全部完成后由 tokenizer.decode 将 completion tokens 转为文本</text>
+  <text x="60" y="970" font-size="12" class="muted">关键不变量：采样结果先追加到 Sequence，停止条件再决定是否释放资源；KV Cache 复用不等于跨请求 Prefix Cache 已闭环。</text>
+</svg>

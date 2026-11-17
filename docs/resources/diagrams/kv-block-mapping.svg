@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="1200" height="980" viewBox="0 0 1200 980" role="img" aria-labelledby="title-kv-block-mapping desc-kv-block-mapping">
+  <title id="title-kv-block-mapping">KV Cache 地址映射：逻辑 token 到非连续物理块</title>
+  <desc id="desc-kv-block-mapping">以 block_size 等于 4、逻辑 token t 等于 10 为例，依次计算逻辑块号 2 和块内 slot 2，经 block table 的第三项找到物理块 11，最终得到全局 slot 46；同时展示逻辑块 0、1、2 分别映射到物理块 7、2、11，以及包含 KV head 和 head_dim 的实际元素偏移公式。</desc>
+  <defs>
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#5B6B7C"/></marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#2F6FED"/></marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#2E8B68"/></marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#D98818"/></marker>
+    <style>
+      text{font-family:'Noto Sans CJK SC','Microsoft YaHei','PingFang SC',Arial,sans-serif;fill:#17324D}
+      .mono{font-family:Consolas,'Liberation Mono',monospace}.muted{fill:#5B6B7C}.blue{fill:#2F6FED}.green{fill:#2E8B68}.orange{fill:#D98818}
+      .card{fill:#FFFFFF;stroke:#CBD6E2;stroke-width:1.4}.flow{fill:none;stroke:#5B6B7C;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow-slate)}
+    </style>
+  </defs>
+  <rect width="1200" height="980" fill="#F6F8FC"/><rect width="1200" height="8" fill="#2F6FED"/>
+  <text x="60" y="46" font-size="14" font-weight="700" class="blue">第 11 章 · Sequence、Block 与 BlockManager</text>
+  <text x="60" y="92" font-size="32" font-weight="700">逻辑顺序不变，物理块可以离散：一次地址映射</text>
+  <text x="60" y="126" font-size="16" class="muted">示例固定 block_size B = 4；同一种映射用于定位每层 K/V，物理块号由 block_table 查得</text>
+
+  <text x="175" y="182" text-anchor="middle" font-size="15" font-weight="700">① 逻辑 token 序列</text>
+  <text x="440" y="182" text-anchor="middle" font-size="15" font-weight="700">② 逻辑块号 + 块内 slot</text>
+  <text x="700" y="182" text-anchor="middle" font-size="15" font-weight="700">③ block_table</text>
+  <text x="1010" y="182" text-anchor="middle" font-size="15" font-weight="700">④ 非连续物理 KV 块</text>
+
+  <!-- 逻辑 token：0—3 -->
+  <rect x="60" y="215" width="230" height="112" rx="12" fill="#EAF1FF" stroke="#2F6FED" stroke-width="1.4"/>
+  <text x="80" y="241" font-size="13" font-weight="700" class="blue">token 0…3</text>
+  <g font-size="13" text-anchor="middle" class="mono">
+    <rect x="80" y="257" width="42" height="42" rx="6" fill="#FFFFFF" stroke="#2F6FED"/><text x="101" y="284">t0</text>
+    <rect x="130" y="257" width="42" height="42" rx="6" fill="#FFFFFF" stroke="#2F6FED"/><text x="151" y="284">t1</text>
+    <rect x="180" y="257" width="42" height="42" rx="6" fill="#FFFFFF" stroke="#2F6FED"/><text x="201" y="284">t2</text>
+    <rect x="230" y="257" width="42" height="42" rx="6" fill="#FFFFFF" stroke="#2F6FED"/><text x="251" y="284">t3</text>
+  </g>
+  <!-- 逻辑 token：4—7 -->
+  <rect x="60" y="355" width="230" height="112" rx="12" fill="#E8F5EE" stroke="#2E8B68" stroke-width="1.4"/>
+  <text x="80" y="381" font-size="13" font-weight="700" class="green">token 4…7</text>
+  <g font-size="13" text-anchor="middle" class="mono">
+    <rect x="80" y="397" width="42" height="42" rx="6" fill="#FFFFFF" stroke="#2E8B68"/><text x="101" y="424">t4</text>
+    <rect x="130" y="397" width="42" height="42" rx="6" fill="#FFFFFF" stroke="#2E8B68"/><text x="151" y="424">t5</text>
+    <rect x="180" y="397" width="42" height="42" rx="6" fill="#FFFFFF" stroke="#2E8B68"/><text x="201" y="424">t6</text>
+    <rect x="230" y="397" width="42" height="42" rx="6" fill="#FFFFFF" stroke="#2E8B68"/><text x="251" y="424">t7</text>
+  </g>
+  <!-- 逻辑 token：8—11，高亮 t10 -->
+  <rect x="60" y="495" width="230" height="112" rx="12" fill="#FFF3DE" stroke="#D98818" stroke-width="1.4"/>
+  <text x="80" y="521" font-size="13" font-weight="700" class="orange">token 8…11 · 选中 t10</text>
+  <g font-size="13" text-anchor="middle" class="mono">
+    <rect x="80" y="537" width="42" height="42" rx="6" fill="#FFFFFF" stroke="#D98818"/><text x="101" y="564">t8</text>
+    <rect x="130" y="537" width="42" height="42" rx="6" fill="#FFFFFF" stroke="#D98818"/><text x="151" y="564">t9</text>
+    <rect x="180" y="537" width="42" height="42" rx="6" fill="#D98818" stroke="#B96E0B" stroke-width="2"/><text x="201" y="564" fill="#FFFFFF" font-weight="700">t10</text>
+    <rect x="230" y="537" width="42" height="42" rx="6" fill="#FFFFFF" stroke="#D98818"/><text x="251" y="564">t11</text>
+  </g>
+
+  <!-- 逻辑定位 -->
+  <path d="M290 271H330" fill="none" stroke="#2F6FED" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <path d="M290 411H330" fill="none" stroke="#2E8B68" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <path d="M290 551H330" fill="none" stroke="#D98818" stroke-width="2.4" marker-end="url(#arrow-orange)"/>
+  <rect x="340" y="215" width="200" height="112" rx="12" fill="#EAF1FF" stroke="#2F6FED" stroke-width="1.4"/>
+  <text x="440" y="249" text-anchor="middle" font-size="18" font-weight="700" class="blue">logical block 0</text>
+  <text x="440" y="278" text-anchor="middle" font-size="13" class="mono">t // 4 = 0</text>
+  <text x="440" y="305" text-anchor="middle" font-size="13" class="muted">块内 slots 0、1、2、3</text>
+  <rect x="340" y="355" width="200" height="112" rx="12" fill="#E8F5EE" stroke="#2E8B68" stroke-width="1.4"/>
+  <text x="440" y="389" text-anchor="middle" font-size="18" font-weight="700" class="green">logical block 1</text>
+  <text x="440" y="418" text-anchor="middle" font-size="13" class="mono">t // 4 = 1</text>
+  <text x="440" y="445" text-anchor="middle" font-size="13" class="muted">块内 slots 0、1、2、3</text>
+  <rect x="340" y="495" width="200" height="112" rx="12" fill="#FFF3DE" stroke="#D98818" stroke-width="2"/>
+  <text x="440" y="529" text-anchor="middle" font-size="18" font-weight="700" class="orange">logical block 2</text>
+  <text x="440" y="558" text-anchor="middle" font-size="13" class="mono">10 // 4 = 2</text>
+  <text x="440" y="585" text-anchor="middle" font-size="13" font-weight="700" class="orange mono">slot = 10 % 4 = 2</text>
+
+  <!-- block table -->
+  <path d="M540 271H620" fill="none" stroke="#2F6FED" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <path d="M540 411H620" fill="none" stroke="#2E8B68" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <path d="M540 551H620" fill="none" stroke="#D98818" stroke-width="2.4" marker-end="url(#arrow-orange)"/>
+  <text x="700" y="215" text-anchor="middle" font-size="12" class="muted mono">Sequence.block_table</text>
+  <rect x="630" y="237" width="140" height="68" rx="10" fill="#EAF1FF" stroke="#2F6FED" stroke-width="1.4"/>
+  <text x="655" y="264" font-size="12" class="muted mono">index 0</text><text x="700" y="290" text-anchor="middle" font-size="18" font-weight="700" class="blue mono">7</text>
+  <rect x="630" y="377" width="140" height="68" rx="10" fill="#E8F5EE" stroke="#2E8B68" stroke-width="1.4"/>
+  <text x="655" y="404" font-size="12" class="muted mono">index 1</text><text x="700" y="430" text-anchor="middle" font-size="18" font-weight="700" class="green mono">2</text>
+  <rect x="630" y="517" width="140" height="68" rx="10" fill="#FFF3DE" stroke="#D98818" stroke-width="2"/>
+  <text x="655" y="544" font-size="12" class="muted mono">index 2</text><text x="700" y="570" text-anchor="middle" font-size="18" font-weight="700" class="orange mono">11</text>
+
+  <!-- 间接寻址：交叉箭头正是非连续映射 -->
+  <path d="M770 271C860 271 850 411 890 411" fill="none" stroke="#2F6FED" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
+  <path d="M770 411C850 411 860 271 890 271" fill="none" stroke="#2E8B68" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow-green)"/>
+  <path d="M770 551H890" fill="none" stroke="#D98818" stroke-width="2.6" stroke-linecap="round" marker-end="url(#arrow-orange)"/>
+  <text x="830" y="349" text-anchor="middle" font-size="12" class="muted">查表跳转</text>
+
+  <!-- 物理块 2 -->
+  <rect x="900" y="215" width="240" height="112" rx="12" fill="#E8F5EE" stroke="#2E8B68" stroke-width="1.4"/>
+  <text x="920" y="242" font-size="14" font-weight="700" class="green">physical block 2</text>
+  <g font-size="12" text-anchor="middle" class="mono">
+    <rect x="920" y="257" width="42" height="42" rx="5" fill="#FFFFFF" stroke="#2E8B68"/><text x="941" y="283">s0</text>
+    <rect x="970" y="257" width="42" height="42" rx="5" fill="#FFFFFF" stroke="#2E8B68"/><text x="991" y="283">s1</text>
+    <rect x="1020" y="257" width="42" height="42" rx="5" fill="#FFFFFF" stroke="#2E8B68"/><text x="1041" y="283">s2</text>
+    <rect x="1070" y="257" width="42" height="42" rx="5" fill="#FFFFFF" stroke="#2E8B68"/><text x="1091" y="283">s3</text>
+  </g>
+  <text x="1020" y="317" text-anchor="middle" font-size="11" class="muted">对应逻辑块 1</text>
+  <!-- 物理块 7 -->
+  <rect x="900" y="355" width="240" height="112" rx="12" fill="#EAF1FF" stroke="#2F6FED" stroke-width="1.4"/>
+  <text x="920" y="382" font-size="14" font-weight="700" class="blue">physical block 7</text>
+  <g font-size="12" text-anchor="middle" class="mono">
+    <rect x="920" y="397" width="42" height="42" rx="5" fill="#FFFFFF" stroke="#2F6FED"/><text x="941" y="423">s0</text>
+    <rect x="970" y="397" width="42" height="42" rx="5" fill="#FFFFFF" stroke="#2F6FED"/><text x="991" y="423">s1</text>
+    <rect x="1020" y="397" width="42" height="42" rx="5" fill="#FFFFFF" stroke="#2F6FED"/><text x="1041" y="423">s2</text>
+    <rect x="1070" y="397" width="42" height="42" rx="5" fill="#FFFFFF" stroke="#2F6FED"/><text x="1091" y="423">s3</text>
+  </g>
+  <text x="1020" y="457" text-anchor="middle" font-size="11" class="muted">对应逻辑块 0</text>
+  <!-- 物理块 11 -->
+  <rect x="900" y="495" width="240" height="112" rx="12" fill="#FFF3DE" stroke="#D98818" stroke-width="2"/>
+  <text x="920" y="522" font-size="14" font-weight="700" class="orange">physical block 11</text>
+  <g font-size="12" text-anchor="middle" class="mono">
+    <rect x="920" y="537" width="42" height="42" rx="5" fill="#FFFFFF" stroke="#D98818"/><text x="941" y="563">s0</text>
+    <rect x="970" y="537" width="42" height="42" rx="5" fill="#FFFFFF" stroke="#D98818"/><text x="991" y="563">s1</text>
+    <rect x="1020" y="537" width="42" height="42" rx="5" fill="#D98818" stroke="#B96E0B" stroke-width="2"/><text x="1041" y="563" fill="#FFFFFF" font-weight="700">s2</text>
+    <rect x="1070" y="537" width="42" height="42" rx="5" fill="#FFFFFF" stroke="#D98818"/><text x="1091" y="563">s3</text>
+  </g>
+  <text x="1020" y="597" text-anchor="middle" font-size="11" font-weight="700" class="orange">t10 → block 11 / slot 2</text>
+
+  <rect x="60" y="642" width="1080" height="46" rx="12" fill="#EEF2F6"/>
+  <text x="600" y="671" text-anchor="middle" font-size="14" class="muted">逻辑块 [0, 1, 2] → 物理块 [7, 2, 11]：无需连续，也无需按逻辑顺序排列；块内 4 个 slots 仍连续</text>
+
+  <!-- 数值代入 -->
+  <rect x="60" y="714" width="1080" height="104" rx="14" class="card"/>
+  <text x="84" y="744" font-size="14" font-weight="700" class="orange">代入 t = 10，B = 4</text>
+  <rect x="85" y="762" width="210" height="38" rx="19" fill="#FFF3DE"/><text x="190" y="787" text-anchor="middle" font-size="14" class="mono">LB = 10 // 4 = 2</text>
+  <path d="M295 781H325" class="flow"/>
+  <rect x="335" y="762" width="210" height="38" rx="19" fill="#FFF3DE"/><text x="440" y="787" text-anchor="middle" font-size="14" class="mono">slot = 10 % 4 = 2</text>
+  <path d="M545 781H575" class="flow"/>
+  <rect x="585" y="762" width="230" height="38" rx="19" fill="#FFF3DE"/><text x="700" y="787" text-anchor="middle" font-size="14" class="mono">block_table[2] = 11</text>
+  <path d="M815 781H845" class="flow"/>
+  <rect x="855" y="762" width="260" height="38" rx="19" fill="#D98818"/><text x="985" y="787" text-anchor="middle" font-size="14" font-weight="700" fill="#FFFFFF" class="mono">global_slot = 11×4+2 = 46</text>
+
+  <!-- 实际元素地址 -->
+  <rect x="60" y="844" width="1080" height="94" rx="14" fill="#F1ECFA" stroke="#7556B3" stroke-width="1.4"/>
+  <text x="84" y="875" font-size="14" font-weight="700" fill="#7556B3">从 token slot 到 K/V 元素：再乘 head 与 head_dim 的布局步长</text>
+  <text x="600" y="906" text-anchor="middle" font-size="16" class="mono">offset = ((physical_block × B + slot) × H_kv + h_kv) × D + d</text>
+  <text x="600" y="928" text-anchor="middle" font-size="11" class="muted">Cache 布局：[num_blocks, B, H_kv, D]；K、V 使用相同布局的两个存储池，每层各自寻址</text>
+  <text x="60" y="966" font-size="12" class="muted">global_slot 是 token 级槽号，不是最终的标量元素下标；slot_mapping 写入与 PagedAttention 读取遵循同一映射。</text>
+</svg>
