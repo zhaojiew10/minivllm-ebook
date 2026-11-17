@@ -2,6 +2,10 @@
 
 一套以 [MinivLLM](https://github.com/Wenyueh/MinivLLM) 当前源码、官方技术路线和配套课程素材为依据的中文书面教程。全书按知识闭环重组为 **6 个部分、15 章**，不是视频逐字稿。
 
+## 在线阅读
+
+**[https://zhaojiew10.github.io/minivllm-ebook/](https://zhaojiew10.github.io/minivllm-ebook/)**
+
 ## 阅读入口
 
 - [电子书首页](docs/index.md)
